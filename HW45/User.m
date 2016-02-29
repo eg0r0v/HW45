@@ -14,17 +14,20 @@
 {
     self = [super init];
     if (self) {
-        
+        self.userID = userID;
     }
     return self;
 }
+
+
 -(id)initWithServerResponce:(NSDictionary*)responceObject;
 {
     self = [super init];
     if (self) {
-        self.userID = (NSInteger)[responceObject objectForKey:@"id"];
+        self.userID = [[responceObject objectForKey:@"uid"] integerValue];
         self.firstName = [responceObject objectForKey:@"first_name"];
         self.lastName = [responceObject objectForKey:@"last_name"];
+        self.isOnline = [[responceObject objectForKey:@"online"] integerValue];
         
         NSString* urlString = [responceObject objectForKey:@"photo_50"];
         

@@ -8,8 +8,18 @@
 
 #import <UIKit/UIKit.h>
 
+@class User;
+
+typedef enum {
+    UsersListFriends,
+    UsersListFollowers,
+    UsersListSubscriptions
+}UsersList;
+
 @interface ViewController : UITableViewController
 
+@property (assign, nonatomic) UsersList usersList;
+@property (strong, nonatomic) User* user;
 
 @end
 

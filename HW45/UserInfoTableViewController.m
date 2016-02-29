@@ -8,8 +8,12 @@
 
 #import "UserInfoTableViewController.h"
 #import "User.h"
+#import "ServerManager.h"
+#import "ViewController.h"
 #import "GrandUserImageTableViewCell.h"
 #import "ButtonsTableViewCell.h"
+#import "UIImageView+AFNetworking.h"
+#import "WallController.h"
 
 @interface UserInfoTableViewController ()
 
@@ -30,13 +34,21 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    self.navigationItem.title = [NSString stringWithFormat:@"%@ %@", self.user.firstName, self.user.lastName];
+    [self.tableView registerNib:[UINib nibWithNibName:@"GrandUserImageTableViewCell" bundle:[NSBundle mainBundle]] forCellReuseIdentifier:@"grandUserImageCell"];
+    [self.tableView registerNib:[UINib nibWithNibName:@"ButtonsTableViewCell" bundle:[NSBundle mainBundle]] forCellReuseIdentifier:@"buttonsCell"];
+    [self.tableView setTableFooterView: [[UIView alloc] initWithFrame:CGRectZero]];
     
-    // Uncomment the following line to preserve selection between presentations.
-    // self.clearsSelectionOnViewWillAppear = NO;
     
-    // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
-    // self.navigationItem.rightBarButtonItem = self.editButtonItem;
+    if (!self.user) {
+        self.user = [[User alloc] initWithId:2989826];
+    }
+    
+    [[ServerManager sharedManager] getUserWithID:self.user.userID
+                                       onSuccess:^(User *user) {
+                                           self.user = user;
+                                           self.navigationItem.title = [NSString stringWithFormat:@"%@ %@", self.user.firstName, self.user.lastName];
+                                           [self.tableView reloadData];
+                                       } onFailure:^(NSError *error, NSInteger statusCode) {}];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -51,7 +63,7 @@
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    if (section == 1) {
+    if (section > 0) {
         return 2;
     }
     return 1;
@@ -61,47 +73,102 @@
     return section == 1 ? @"Info" : nil;
 }
 
--(NSString*)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
-    return section == 1 ? @" " : nil;
+-(CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    return indexPath.section ? 43.f : 260.f;
 }
 
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     
-    NSString* reuseIdentifier = nil;
-    
     if (indexPath.section == 0) {
-        GrandUserImageTableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:@"grandUserImageCell"];
+        GrandUserImageTableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:@"grandUserImageCell" forIndexPath:indexPath];
+
+        NSURLRequest* request = [NSURLRequest requestWithURL:self.user.largeImageURL];
         
-        if (!cell) {
-            cell = [[GrandUserImageTableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                                      reuseIdentifier:@"grandUserImageCell"];
-            
-            return cell;
-        }
+        __weak GrandUserImageTableViewCell* weakCell = cell;
+        
+        weakCell.grandImageView.image = nil;
+        
+        [cell.grandImageView setImageWithURLRequest:request
+                              placeholderImage:nil
+                                       success:^void(NSURLRequest * __nonnull request, NSHTTPURLResponse * __nonnull responce, UIImage * __nonnull image) {
+                                           weakCell.grandImageView.image = image;
+                                           [weakCell setNeedsLayout];
+                                       } failure:^ void(NSURLRequest * __nonnull request,
+                                                        NSHTTPURLResponse * __nonnull responce,
+                                                        NSError * __nonnull error) {
+                                       }];
+        
+        return cell;
+        
     } else if (indexPath.section == 1) {
         UITableViewCell * cell = [tableView dequeueReusableCellWithIdentifier:@"infoCell"];
         
         if (!cell) {
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                                      reuseIdentifier:@"infoCell"];
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1
+                                          reuseIdentifier:@"infoCell"];
         }
+        if (indexPath.row == 0) {
+            [cell.textLabel setText:@"Birth date"];
+            [cell.detailTextLabel setText: self.user.birthDate ? self.user.birthDate : @"hidden"];
+        } else {
+            [cell.textLabel setText:@"Mobile phone"];
+            [cell.detailTextLabel setText: self.user.mobilePhone ? self.user.mobilePhone : @"hidden"];
+        }
+        return cell;
         
-            return cell;
-    } else {
+    } else if (indexPath.section == 2 && indexPath.row == 0){
         
         ButtonsTableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"buttonsCell" forIndexPath:indexPath];
+        [cell setDelegate:self];
+        return cell;
+    } else {
+        UITableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:@"wallCell"];
         
         if (!cell) {
-            cell = [[ButtonsTableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"buttonsCell"];
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"wallCell"];
         }
         
+        [cell.textLabel setText:@"WALL"];
+        [cell.textLabel setTextAlignment:NSTextAlignmentCenter];
         return cell;
     }
     
     return nil;
 }
 
+-(void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    
+    if (indexPath.section == 2 && indexPath.row == 1) {
+        WallController* wc = [[WallController alloc] init];
+        [wc setUserID:self.user.userID];
+        [wc setUserPhotoURL:self.user.smallImageURL];
+        [self.navigationController pushViewController:wc animated:YES];
+    }
+}
+
+#pragma mark - IBActions
+- (void)actionShowFriends:(UIButton *)sender {
+    ViewController* vc = [[ViewController alloc] initWithStyle:UITableViewStylePlain];
+    [vc setUser:self.user];
+    [vc setUsersList:UsersListFriends];
+    [self.navigationController pushViewController:vc animated:YES];
+}
+
+- (void)actionShowSubscriptions:(UIButton *)sender {
+    ViewController* vc = [[ViewController alloc] initWithStyle:UITableViewStylePlain];
+    [vc setUser:self.user];
+    [vc setUsersList:UsersListSubscriptions];
+    [self.navigationController pushViewController:vc animated:YES];
+}
+
+- (void)actionShowFollowers:(UIButton *)sender {
+    ViewController* vc = [[ViewController alloc] initWithStyle:UITableViewStylePlain];
+    [vc setUser:self.user];
+    [vc setUsersList:UsersListFollowers];
+    [self.navigationController pushViewController:vc animated:YES];
+}
 
 /*
 // Override to support conditional editing of the table view.

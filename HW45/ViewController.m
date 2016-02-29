@@ -12,12 +12,13 @@
 #import "UserInfoTableViewController.h"
 #import "UIImageView+AFNetworking.h"
 
+
 @interface ViewController ()
 
-@property (strong, nonatomic) User* user;
 @property (strong, nonatomic) NSMutableArray* friendsArray;
 
 @end
+
 
 @implementation ViewController
 
@@ -28,13 +29,26 @@ static NSInteger friendsInRequest = 20;
     // Do any additional setup after loading the view, typically from a nib.
     
     if (self.user == nil) {
-        self.user = [[User alloc] initWithServerResponce:];
+        self.user = [[User alloc] initWithId:2989826];
     }
     
     self.friendsArray =  [NSMutableArray array];
     
-    [self getFriendsFromServer];
+    switch (self.usersList) {
+        case UsersListFriends:
+            [self getFriendsFromServer];
+            break;
+        case UsersListFollowers:
+            [self getFollowersFromServer];
+            break;
+        case UsersListSubscriptions:
+            [self getSubscriptionsFromServer];
+            break;
+        default:
+            break;
+    }
     
+    [self.tableView setTableFooterView: [[UIView alloc] initWithFrame:CGRectZero]];
     [self.tableView reloadData];
 }
 
@@ -48,25 +62,12 @@ static NSInteger friendsInRequest = 20;
 -(void)getFriendsFromServer {
     
     [[ServerManager sharedManager]
-     getFriendsWithId:self.user.userID
+     getFriendsForID:self.user.userID
      Offset:[self.friendsArray count]
      andCount:friendsInRequest
      onSuccess:^(NSArray *friends) {
          
          [self.friendsArray addObjectsFromArray:friends];
-         
-         //
-         //
-         //         NSMutableArray* newPaths = [NSMutableArray array];
-         //
-         //         for (int i = (int)[self.friendsArray count] - (int)[friends count]; i < (int)[self.friendsArray count]; i++) {
-         //             [newPaths addObject:[NSIndexPath indexPathForRow:i inSection:0]];
-         //         }
-         //
-         //         [self.tableView beginUpdates];
-         //         [self.tableView insertRowsAtIndexPaths:newPaths withRowAnimation:UITableViewRowAnimationTop];
-         //         [self.tableView endUpdates];
-         
          [self.tableView reloadData];
          
      } onFailure:^(NSError *error, NSInteger statusCode) {
@@ -75,6 +76,43 @@ static NSInteger friendsInRequest = 20;
          
      }];
 }
+
+
+-(void)getFollowersFromServer {
+    [[ServerManager sharedManager]
+     getFollowersForID:self.user.userID
+     Offset:[self.friendsArray count]
+     andCount:friendsInRequest
+     onSuccess:^(NSArray *friends) {
+         
+         [self.friendsArray addObjectsFromArray:friends];
+         [self.tableView reloadData];
+         
+     } onFailure:^(NSError *error, NSInteger statusCode) {
+         
+         NSLog(@"error = %@, code = %d", [error localizedDescription], statusCode);
+         
+     }];
+}
+
+-(void)getSubscriptionsFromServer {
+    
+    [[ServerManager sharedManager]
+     getSubscriptionsForID:self.user.userID
+     Offset:[self.friendsArray count]
+     andCount:friendsInRequest
+     onSuccess:^(NSArray *friends) {
+         if ([[friends firstObject] userID] != [[self.friendsArray firstObject] userID]) {
+             [self.friendsArray addObjectsFromArray:friends];
+             [self.tableView reloadData];
+         }
+     } onFailure:^(NSError *error, NSInteger statusCode) {
+         
+         NSLog(@"error = %@, code = %d", [error localizedDescription], statusCode);
+         
+     }];
+}
+
 
 #pragma mark - UITableViewDataSource
 
@@ -90,7 +128,7 @@ static NSInteger friendsInRequest = 20;
     UITableViewCell* cell = [tableView dequeueReusableCellWithIdentifier:identifier];
     
     if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleValue1
                                       reuseIdentifier:identifier];
     }
     
@@ -103,11 +141,21 @@ static NSInteger friendsInRequest = 20;
         
         User* friend = [self.friendsArray objectAtIndex:indexPath.row];
         
-        cell.textLabel.text = [NSString stringWithFormat:@"%@ %@",friend.firstName, friend.lastName];
-        
-        NSURLRequest* request = [NSURLRequest requestWithURL:friend.smallImageURL];
-        
         __weak UITableViewCell* weakCell = cell;
+        
+        if (!friend.firstName) {
+            [[ServerManager sharedManager] getUserWithID:friend.userID onSuccess:^(User *user) {
+                [self.friendsArray setObject:user atIndexedSubscript:indexPath.row];
+                [self.tableView reloadData];
+            } onFailure:^(NSError *error, NSInteger statusCode) {}];
+        } else {
+        
+            cell.textLabel.text = [NSString stringWithFormat:@"%@ %@",friend.firstName, friend.lastName];
+            [cell.detailTextLabel setText: friend.isOnline ? @"Online" : nil ];
+        
+            NSURLRequest* request = [NSURLRequest requestWithURL:friend.smallImageURL];
+        
+        
         
         weakCell.imageView.image = nil;
         
@@ -116,16 +164,18 @@ static NSInteger friendsInRequest = 20;
                                        success:^void(NSURLRequest * __nonnull request,
                                                      NSHTTPURLResponse * __nonnull responce,
                                                      UIImage * __nonnull image) {
-                                           weakCell.imageView.image = image;
+                                               weakCell.imageView.image = image;
+                                           [weakCell setNeedsLayout];
                                        } failure:^ void(NSURLRequest * __nonnull request,
                                                         NSHTTPURLResponse * __nonnull responce,
                                                         NSError * __nonnull error) {
                                        }];
+        }
     }
-    
     
     return cell;
 }
+
 
 #pragma mark - UITableViewDelegate
 
@@ -134,10 +184,27 @@ static NSInteger friendsInRequest = 20;
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     
     if (indexPath.row == [self.friendsArray count]) {
-        [self getFriendsFromServer];
+        switch (self.usersList) {
+            case UsersListFriends:
+                [self getFriendsFromServer];
+                break;
+            case UsersListFollowers:
+                [self getFollowersFromServer];
+                break;
+            case UsersListSubscriptions:
+                [self getSubscriptionsFromServer];
+                break;
+            default:
+                break;
+        }
     } else {
-        UserInfoTableViewController* vc = [[UserInfoTableViewController alloc] initForUser:[self.friendsArray objectAtIndex:indexPath.row]];
-        [self.navigationController showViewController:vc sender:self];
+        User* user = [self.friendsArray objectAtIndex:indexPath.row];
+        [[ServerManager sharedManager] getUserWithID:user.userID onSuccess:^(User *user) {
+            UserInfoTableViewController* vc = [[UserInfoTableViewController alloc] initForUser:user];
+            [self.navigationController pushViewController:vc animated:YES];
+        } onFailure:^(NSError *error, NSInteger statusCode) {
+        }];
+        
     }
 }
 

@@ -7,7 +7,15 @@
 //
 
 #import <UIKit/UIKit.h>
+@protocol ButtonsDelegate
+
+-(void)actionShowFriends:(UIButton*)sender;
+- (void)actionShowSubscriptions:(UIButton *)sender;
+- (void)actionShowFollowers:(UIButton *)sender;
+    
+@end;
 
 @interface ButtonsTableViewCell : UITableViewCell
 
+@property (strong, nonatomic) id <ButtonsDelegate> delegate;
 @end

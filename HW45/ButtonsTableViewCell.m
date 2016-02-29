@@ -20,4 +20,16 @@
     // Configure the view for the selected state
 }
 
+- (IBAction)actionShowFriends:(UIButton *)sender {
+    [self.delegate actionShowFriends:sender];
+}
+
+- (IBAction)actionShowSubscriptions:(UIButton *)sender {
+    [self.delegate actionShowSubscriptions:sender];
+}
+
+- (IBAction)actionShowFollowers:(UIButton *)sender {
+    [self.delegate actionShowFollowers:sender];
+}
+
 @end
